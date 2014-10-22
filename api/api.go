@@ -229,10 +229,13 @@ func Cancel(r *mux.Router, uuid string) bool {
         URL: url, //Consider handling this at object struct
         Header: http.Header{}, // TODO
     })
-
-    fmt.Println(resp)
-    fmt.Println(err)
-
+    if err != nil {
+        log.Printf("[%v] error sending delete request", uuid)
+    } else if 200 <= resp.StatusCode && resp.StatusCode < 300 {
+        log.Printf("[%v] successful delete request", uuid)
+    } else {
+        log.Printf("[%v] error handling delete request", uuid)
+    }
     return true
 }
 

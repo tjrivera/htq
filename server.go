@@ -54,7 +54,7 @@ func RequestHandler(res http.ResponseWriter, req *http.Request) {
     } else if req.Method == "DELETE"{
         r := api.Cancel(router(), uuid)
         if r {
-            res.Write([]byte("WIP"))
+            res.WriteHeader(http.StatusNoContent)
         }
         return
     }
