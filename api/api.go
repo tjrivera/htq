@@ -11,6 +11,8 @@ import (
     "strconv"
     "fmt"
     "log"
+    "net/http"
+    "net/url"
 )
 
 const (
@@ -169,8 +171,8 @@ func Cancel(r *mux.Router, uuid string) bool {
     c := getRedisClient()
 
     key := REQ_PREFIX + uuid
-    req, err := redis.Strings(c.Do("HGETALL", key))
 
+    req, err := redis.Strings(c.Do("HGETALL", key))
     // Request does not exist
     if err != nil {
         log.Println("Unable to retrieve request from redis", err)
@@ -199,10 +201,38 @@ func Cancel(r *mux.Router, uuid string) bool {
         }
         return true
     }
-    // TODO -- incomplete -- REF api.py:241
+    // Handle Queued or pended states
+    c.Send("WATCH", key)
+    c.Send("HSET", key, "status", "canceled")
+    c.Flush()
+    _, err = c.Receive()
+    if err != nil {
+        log.Printf("[%v] cancel interrupted, retrying.", uuid)
+        log.Println(err)
+        return Cancel(r, uuid)
+    }
 
-    fmt.Println(task)
-    fmt.Println(task.Status)
+    // If it was only queued, just return since it will be skipped when received.
+    if task.Status == "queued" {
+        log.Printf("[%v] canceled request", uuid)
+        return true
+    }
+
+    // Send a delete request that may or may not cancel the previous request
+    client := &http.Client{
+        Timeout: time.Duration(task.Timeout)*time.Second,
+    }
+
+    url, _ := url.Parse(task.Url)
+    resp, err := client.Do(&http.Request{
+        Method: "DELETE",
+        URL: url, //Consider handling this at object struct
+        Header: http.Header{}, // TODO
+    })
+
+    fmt.Println(resp)
+    fmt.Println(err)
+
     return true
 }
 
